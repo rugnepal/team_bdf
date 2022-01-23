@@ -1,0 +1,26 @@
+---
+title: "RNA-seq analysis in R: Mouse mammary RNA-Seq data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Installing Packages and Loading Libraries
+```{r}
+if (!requireNamespace("BiocManager"))
+    install.packages("BiocManager")
+BiocManager::install(c("limma", "edgeR", "Glimma", "org.Mm.eg.db", "gplots", "RColorBrewer", "NMF", "BiasedUrn"))
+```
+
+```{r}
+library(edgeR)
+library(limma)
+library(Glimma)
+library(org.Mm.eg.db)
+library(gplots)
+library(RColorBrewer)
+library(NMF)
+```
+
