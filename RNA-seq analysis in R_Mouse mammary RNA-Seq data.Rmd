@@ -43,3 +43,14 @@ sampleinfo <- read.delim("data/SampleInfo.txt", stringsAsFactors = TRUE)
 
 =======
 >>>>>>> 5902aaf6cfd38206a674810f6c76bce380952fc5
+
+#Format the data
+```{r}
+
+# Remove first two columns from seqdata
+countdata <- seqdata[,-(1:2)]
+# Look at the output
+head(countdata)
+
+```
+
