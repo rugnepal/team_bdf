@@ -49,8 +49,243 @@ sampleinfo <- read.delim("data/SampleInfo.txt", stringsAsFactors = TRUE)
 
 # Remove first two columns from seqdata
 countdata <- seqdata[,-(1:2)]
+seqdata
+# using substr, characters starting at position 1 and stopping at position 7 of the colnames are extracted
+colnames(countdata) <- substr(colnames(countdata),start=1,stop=7)
+
+# Store EntrezGeneID as rownames
+rownames(countdata) <- seqdata[,1]
+
 # Look at the output
 head(countdata)
 
+# the column names are now the same as SampleName in the sampleinfo file.  it means our sample information in sampleinfo is in the same order as the columns in countdata.
+table(colnames(countdata)==sampleinfo$SampleName)
+
 ```
+
+# Convert counts to DGEList Object
+DGEList object is used by edgeR to store count data and has a number of slots for storing various parameters about the data.
+```{r}
+y <- DGEList(countdata)
+y
+
+# See what slots are stored in y
+names(y)
+
+# Library size information is stored in the samples slot
+y$samples
+
+
+# store the groups for the samples in the DGEList object.
+group <- paste(sampleinfo$CellType,sampleinfo$Status,sep=".")
+# Take a look
+group
+
+# Convert to factor
+group <- factor(group)
+# Take another look.
+group
+
+# Add the group information into the DGEList
+y$samples$group <- group
+y$samples
+```
+# Adding Annotations
+The Entrez gene id is the only annotation we can see which is not bery helpful so we add some annotation info using org.Mm.eg.db package.
+```{r}
+#columns function shows what info is available in the database
+columns(org.Mm.eg.db)
+
+#a separate dataframe containing gene symbols and gene name along with entrezid is formed
+ann <- select(org.Mm.eg.db,keys=rownames(y$counts),columns=c("ENTREZID","SYMBOL","GENENAME"))
+head(ann)
+
+#double check whether the ENTRZID column matches exactly to our y$counts row 
+table(ann$ENTREZID==rownames(y$counts))
+
+#the annotation information is then slotted into genes slot of y
+y$genes <- ann
+```
+
+# Filtering Lowly Expressed Genes
+Genes with low counts provide little evidence for differential expression and interfere with the statistical approximations used in the pipeline. To filter out lowly expressed genes, we choose to retain genes if they are expressed at a counts-per-million above 0.5 in at least two samples.
+```{r}
+# obtaining CPMs 
+myCPM <- cpm(countdata)
+# output
+head(myCPM)
+```
+
+```{r}
+# checking values in myCPM greater than 0.5, by producing a logical matrix of TRUEs and FALSEs
+thresh <- myCPM > 0.5
+head(thresh)
+```
+
+```{r}
+# summary of how many TRUEs are in each row
+table(rowSums((thresh)))
+```
+
+```{r}
+#keeping genes that have at least 2 TRUEs in each row of thresh
+keep <- rowSums(thresh) >= 2
+summary(keep)
+```
+```{r}
+# checking whether the threshold of 0.5 correspond to a count of 10-15
+plot(myCPM[,1], countdata[,1], ylim =c(0,50), xlim = c(0,3))
+# adding vertical line at 0.5 CPM and horizontal lune at 10
+abline(v=0.5, h = 10, col = "blue")
+```
+```{r}
+# after we have checked the filtering method, we will filter the DGEList object
+y <- y[keep, keep.lib.sizes = FALSE]
+```
+
+#Quality Control
+After we have removed lowly expressed genes an have the counts stores in a DGEList object, we can draw some plots to check the quality of the data
+
+## Library Size and Distribution Plots
+```{r}
+# checking how many reads we have for each sample
+y$samples$lib.size
+```
+We can plot the library sizes as a barplot to see whether there are any major discrepancies between the samples more easily
+### Barplot
+```{r}
+# names argument tels the barplot to use the sample names on the x-axis, las argument rotates the axis names
+barplot(y$samples$lib.size/1e06, names = colnames(y), las = 2, cex.name = 0.75, ann = FALSE)
+mtext(side = 1, text = "Samples", line = 4)
+mtext(side = 2, text = "Library Size (in millions)", line = 3)
+title("Barplot of Library Sizes")
+```
+### Boxplot
+Since count data is not normally distributed, we need to log the raw counts and use box plots to check their distribution
+```{r}
+# get log2 counts per million
+logcounts <- cpm(y, log = TRUE)
+# boxplot
+boxplot(logcounts, xlab = "", ylab = "log2 counts per million", las = 2)
+# adding a blue horizontal line that corresponds to the median logcpm
+abline(h=median(logcounts), col = "blue")
+# title
+title("Boxplots of logCPMs C(unnormalised)")
+```
+## Multidimensional Scaling Plots
+MDSplots are one of the most important plots to anlayse RNA-Seq data. MDSplot is a visualization of PCA, which determines the greatest sources of variation in the data.
+```{r}
+plotMDS(y)
+```
+```{r}
+# how many cell types and in what order are they stored
+levels(sampleinfo$CellType)
+```
+
+```{r}
+#purple for basal and orange for luminal
+col.cell <- c("purple", "orange")[sampleinfo$CellType]
+data.frame(sampleinfo$CellType,col.cell)
+```
+```{r}
+# Similarly for status
+levels(sampleinfo$Status)
+
+# blue red and black for lactate, pregnant and virgin
+col.status <- c("blue","red","black")[sampleinfo$Status]
+col.status
+```
+
+```{r}
+# specifying option to let us plot two plots side-by-side
+par(mfrow= c(1,2))
+
+# redoing the MDS with cell type colouring
+plotMDS(y, col = col.cell)
+legend("topleft", fill = c("purple", "orange"),legend = levels(sampleinfo$CellType))
+# Adding a title
+title("Cell type")
+
+# redoing the MDS with status colouring
+plotMDS(y,col=col.status)
+legend("topleft",fill=c("blue","red","black"),legend=levels(sampleinfo$Status),cex=0.8)
+title("Status")
+
+
+```
+```{r}
+# Sampleinfo Correction
+sampleinfo <- read.delim("data/SampleInfo_Corrected.txt", stringsAsFactors = TRUE)
+sampleinfo
+group <- factor(paste(sampleinfo$CellType,sampleinfo$Status,sep="."))
+y$samples$group <- group
+```
+```{r}
+# Redoing the MDSplot with corrected information
+par(mfrow=c(1,2))
+col.cell <- c("purple","orange")[sampleinfo$CellType]
+col.status <- c("blue","red","black")[sampleinfo$Status]
+plotMDS(y,col=col.cell)
+legend("topleft",fill=c("purple","orange"),legend=levels(sampleinfo$CellType))
+title("Cell type")
+plotMDS(y,col=col.status)
+legend("topleft",fill=c("blue","red","black"),legend=levels(sampleinfo$Status),cex=0.8)
+title("Status")
+```
+## Hierarchical Clustering with Heatmaps
+Heatmaps help in the visualization of hierarchical clustering of the samples. Here, heatmap.2 function from the gplots package is used which calculates a matrix of euclidean distances from the logCPM (logcounts object) for the 500 most variable genes.
+Now, selecting data for the 500 most variable genes and plotting the heatmap
+```{r}
+# estimating the variance for each row in the logcounts matrix
+var_genes <- apply(logcounts, 1, var)
+head(var_genes)
+```
+```{r}
+# getting gene names for the top 500 most variable genes
+select_var <- names(sort(var_genes, decreasing = TRUE))[1:500]
+head(select_var)
+```
+```{r}
+# subsetting logcounts matrix
+highly_variable_lcpm <- logcounts[select_var,]
+dim(highly_variable_lcpm)
+head(highly_variable_lcpm)
+```
+```{r}
+# getting colors
+mypalette <- brewer.pal(11,"RdYlBu")
+morecols <- colorRampPalette(mypalette)
+# setting up color vector for celltype variable
+col.cell <- c("purple", "orange")[sampleinfo$CellType]
+# plot the heatmap
+heatmap.2(highly_variable_lcpm,col=rev(morecols(50)),trace="none", main="Top 500 most variable genes across samples",ColSideColors=col.cell,scale="row")
+```
+```{r}
+# more annotations, like colors for cell type and status, the aheatmap function can be used. which columns to use can be specified using sampleinfo in annCol= which adds colored bars.
+mypalette <- brewer.pal(11,"RdYlBu")
+morecols <- colorRampPalette(mypalette)
+aheatmap(highly_variable_lcpm,col=rev(morecols(50)),main="Top 500 most variable genes across samples",annCol=sampleinfo[, 3:4],labCol=group, scale="row")
+```
+# Normalization for Composition Bias
+Normalization needs to be done to eliminate composition biases between libraries
+```{r}
+# Applying normalisation to DGEList object
+y <- calcNormFactors(y)
+```
+The calcNormFactors function updates the normalisation factors in the DGEList. A value below one one indicates that the library size will be scaled down, as there is more suppression (i.e., composition bias) in that library relative to the other libraries. This is also equivalent to scaling the counts upwards in that sample. Conversely, a factor above one scales up the library size and is equivalent to downscaling the counts. *Add MD plots later
+```{r}
+y$samples
+```
+# Differential Expression with limma-voom
+Since we have normalised the data and the quality looks good, we can start testing for differentially expressed genes. For this, we used the limma package which offers the voom function , which transforms the read counts into logCPMs while taking into account the mean-variance relationship in the data. After vooming, we can apply a linear model to the voom transformed data to test for differentially expressed genes, using standard limma commands.
+
+## Creating the design matrix
+
+
+
+
+
+
+
 
