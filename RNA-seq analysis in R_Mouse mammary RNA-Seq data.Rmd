@@ -281,7 +281,7 @@ y$samples
 Since we have normalised the data and the quality looks good, we can start testing for differentially expressed genes. For this, we used the limma package which offers the voom function , which transforms the read counts into logCPMs while taking into account the mean-variance relationship in the data. After vooming, we can apply a linear model to the voom transformed data to test for differentially expressed genes, using standard limma commands.
 
 ## Creating the design matrix
-
+undergoing!
 
 
 
