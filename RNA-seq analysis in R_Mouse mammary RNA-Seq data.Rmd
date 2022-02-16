@@ -281,7 +281,97 @@ y$samples
 Since we have normalised the data and the quality looks good, we can start testing for differentially expressed genes. For this, we used the limma package which offers the voom function , which transforms the read counts into logCPMs while taking into account the mean-variance relationship in the data. After vooming, we can apply a linear model to the voom transformed data to test for differentially expressed genes, using standard limma commands.
 
 ## Creating the design matrix
-undergoing!
+We need to create a design matrix for the groups. Here we want to know which genes are differentially expressed between pregnant and lactating in basal cells only. The group variable we coded earlier, is a concatenation of cell type and status, which allows us to be flexible in specifying the comparisons we are interested in.
+Each column of the design matrix tells which samples correspond to each group. For example: samples which come from basal cells from a lactating mouse correspond to columns 5 and 6 in the counts matrix.
+```{r}
+# viewing the group variable again
+group
+```
+```{r}
+# specifying a design matrix without an intercept term
+design <- model.matrix(~0 + group)
+design
+
+#making the column names of the design matrix look better
+colnames(design) <- levels(group)
+design
+```
+## Voom Transformation of Data
+Voom transformation adjusts the library sizes using the norm.factors already calculated. It uses the design matrix and produces an EList object. Adding plot = TRUE generates a plot of the mean-variance trend, which shows if there are any genes that look really variable and if we've filtered the low counts adequately.
+```{r}
+par(mfrow=c(1,1))
+v<-voom(y, design, plot = TRUE)
+```
+The voom normalised log2 counts can be found in v$E. 
+```{r}
+# taking a look at what is in the voom object
+v
+names(v)
+```
+
+## Testing for Differential Expression
+We now use limma package in the voom transferred data. First we fit a linear model for each gene using th lmFit function in limma. lmFit estimates group means according to the design matrix, as well as gene-wise variances.
+```{r}
+# fitting the linear model
+fit <- lmFit(v)
+names(fit)
+```
+Since we are interested in the differences between groups, the comparisons to be tested needs to be specified. This specification is done by the makeContrasts function. Here, we want to know which genes are differentially expressed between the pregnant and the lactating group in the basal cells. This function does so by defining the null hypothesis as basal.pregnant - basal.lactate = 0 for each gene.
+```{r}
+# which genes are differentially expressed between the pregnant and the lactating group in the basal cells?
+cont.matrix <- makeContrasts(B.PregVsLac=basal.pregnant - basal.lactate,levels=design)
+```
+The contrast matrixtells limma which columns of the design matrix we are interested in testing our comparison.
+```{r}
+# viewing the contrast matrix
+cont.matrix
+```
+Then, we apply the contrasts matrix to the fit object to get the statistics and estimated parameters of our comparison that we are interested in. Here we call the contrasts.fit function in limma.
+```{r}
+fit.cont <- contrasts.fit(fit, cont.matrix)
+```
+Finally the eBayes function is used to perform empirical Bayes shrinkage on the variances, and estimates moderated t-statistics and the associated p-values.
+```{r}
+fit.cont <- eBayes(fit.cont)
+dim(fit.cont)
+```
+decideTests function generates a quick summary of DE genes for the contrasts.
+```{r}
+summa.fit <- decideTests(fit.cont)
+summary(summa.fit)
+```
+
+## Plots after Testing for DE
+Finally, we make a few plots to ensure there are no mistakes in the analysis. MDplots and Volcano plots are useful for checking the analysis and visualizing the results. limma has functions for plotting these with fit.cont as input.
+
+```{r MDPlot and Volcano Plot}
+par(mfrow=c(1,2))
+# MDPlot
+# Significant genes can be highlighted using the summa.fit from Chunk 39.
+plotMD(fit.cont, coef=1, status = summa.fit[,"B.PregVsLac"], values = c(-1,1))
+
+# Volcano Plot
+# how many of the top genes to highlight can be specified using highlight= 100. the gene symbols for the highlighted genes can also be specified
+volcanoplot(fit.cont,coef=1,highlight=100,names=fit.cont$genes$SYMBOL, main="B.PregVsLac")
+```
+
+Before conducting further lab work on the differentially expressed genes obtained from the analysis, we need to look at the expression levels of the individual samples for the genes of interest.
+For this, we construct an interactive version of the volcano plot, that includes the logCPM per sample for a selected gene. This can be done using the glXYPlot in the Glimma package.
+```{r Interactive Volcano Plot}
+group2 <- group
+levels(group2) <- c("basal.lactate","basal.preg","basal.virgin","lum.lactate", "lum.preg", "lum.virgin")
+glXYPlot(x=fit.cont$coefficients[,1], y=fit.cont$lods[,1],
+         xlab="logFC", ylab="B", main="B.PregVsLac",
+         counts=v$E, groups=group2, status=summa.fit[,1],
+         anno=fit.cont$genes, side.main="ENTREZID", folder="volcano")
+```
+
+# Recording Package Version
+The sessionInfo gives the information describing the versions of R and of the packages that were used in the analysis. 
+```{r}
+sessionInfo()
+```
+
 
 
 
