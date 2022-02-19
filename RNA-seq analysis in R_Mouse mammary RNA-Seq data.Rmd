@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 <<<<<<< HEAD
 # Mouse Mammary Gland Dataset
-The data for this R markdown file comes from a Nature Cell Biology paper, EGF-mediated induction of Mcl-1 at the switch to lactation is essential for alveolar cell survival (Fu et al. 2015). Both the raw data (sequence reads) and processed data (counts) can be downloaded from Gene Expression Omnibus database (GEO) under accession number GSE60450.
+The data for this R markdown file comes from a Nature Cell Biology paper,  (Fu et al. 2015). Both the raw data (sequence reads) and processed data (counts) can be downloaded from Gene Expression Omnibus database (GEO) under accession number GSE60450.
 
 This study examines the expression profiles of basal stem-cell enriched cells (B) and committed luminal cells (L) in the mammary gland of virgin, pregnant and lactating mice. Six groups are present, with one for each combination of cell type and mouse status. Each group contains two biological replicates. We will first use the counts file as a starting point for our analysis. This data has already been aligned to the mouse genome. The command line tool featureCounts (Liao, Smyth, and Shi 2014) was used to count reads mapped to mouse genes from Refseq annotation (see the paper for details).
 
@@ -19,7 +19,7 @@ This study examines the expression profiles of basal stem-cell enriched cells (B
 ```{r}
 if (!requireNamespace("BiocManager"))
     install.packages("BiocManager")
-BiocManager::install(c("limma", "edgeR", "Glimma", "org.Mm.eg.db", "gplots", "RColorBrewer", "NMF", "BiasedUrn"))
+BiocManager::install(c("limma", "edgeR", "Glimma", "org.Mm.eg.db", "gplots", "RColorBrewer"))
 ```
 
 ```{r}
@@ -38,7 +38,7 @@ library(NMF)
 # Read the data into R
 seqdata <- read.delim("data/GSE60450_LactationGenewiseCounts.txt", stringsAsFactors = FALSE)
 # Read the sample information into R
-sampleinfo <- read.delim("data/SampleInfo.txt", stringsAsFactors = TRUE)
+sampleinfo <- read.delim("data/SampleInfo_Corrected.txt", stringsAsFactors = TRUE)
 ```
 
 =======
@@ -92,7 +92,7 @@ y$samples$group <- group
 y$samples
 ```
 # Adding Annotations
-The Entrez gene id is the only annotation we can see which is not bery helpful so we add some annotation info using org.Mm.eg.db package.
+The Entrez gene id is the only annotation we can see which is not very helpful so we add some annotation info using org.Mm.eg.db package.
 ```{r}
 #columns function shows what info is available in the database
 columns(org.Mm.eg.db)
@@ -136,7 +136,7 @@ summary(keep)
 ```{r}
 # checking whether the threshold of 0.5 correspond to a count of 10-15
 plot(myCPM[,1], countdata[,1], ylim =c(0,50), xlim = c(0,3))
-# adding vertical line at 0.5 CPM and horizontal lune at 10
+# adding vertical line at 0.5 CPM and horizontal line at 10
 abline(v=0.5, h = 10, col = "blue")
 ```
 ```{r}
@@ -174,7 +174,7 @@ abline(h=median(logcounts), col = "blue")
 title("Boxplots of logCPMs C(unnormalised)")
 ```
 ## Multidimensional Scaling Plots
-MDSplots are one of the most important plots to anlayse RNA-Seq data. MDSplot is a visualization of PCA, which determines the greatest sources of variation in the data.
+MDSplots are one of the most important plots to analyse RNA-Seq data. MDSplot is a visualization of PCA, which determines the greatest sources of variation in the data.
 ```{r}
 plotMDS(y)
 ```
@@ -214,25 +214,8 @@ title("Status")
 
 
 ```
-```{r}
-# Sampleinfo Correction
-sampleinfo <- read.delim("data/SampleInfo_Corrected.txt", stringsAsFactors = TRUE)
-sampleinfo
-group <- factor(paste(sampleinfo$CellType,sampleinfo$Status,sep="."))
-y$samples$group <- group
-```
-```{r}
-# Redoing the MDSplot with corrected information
-par(mfrow=c(1,2))
-col.cell <- c("purple","orange")[sampleinfo$CellType]
-col.status <- c("blue","red","black")[sampleinfo$Status]
-plotMDS(y,col=col.cell)
-legend("topleft",fill=c("purple","orange"),legend=levels(sampleinfo$CellType))
-title("Cell type")
-plotMDS(y,col=col.status)
-legend("topleft",fill=c("blue","red","black"),legend=levels(sampleinfo$Status),cex=0.8)
-title("Status")
-```
+
+
 ## Hierarchical Clustering with Heatmaps
 Heatmaps help in the visualization of hierarchical clustering of the samples. Here, heatmap.2 function from the gplots package is used which calculates a matrix of euclidean distances from the logCPM (logcounts object) for the 500 most variable genes.
 Now, selecting data for the 500 most variable genes and plotting the heatmap
@@ -267,6 +250,7 @@ mypalette <- brewer.pal(11,"RdYlBu")
 morecols <- colorRampPalette(mypalette)
 aheatmap(highly_variable_lcpm,col=rev(morecols(50)),main="Top 500 most variable genes across samples",annCol=sampleinfo[, 3:4],labCol=group, scale="row")
 ```
+
 # Normalization for Composition Bias
 Normalization needs to be done to eliminate composition biases between libraries
 ```{r}
@@ -277,6 +261,7 @@ The calcNormFactors function updates the normalisation factors in the DGEList. A
 ```{r}
 y$samples
 ```
+
 # Differential Expression with limma-voom
 Since we have normalised the data and the quality looks good, we can start testing for differentially expressed genes. For this, we used the limma package which offers the voom function , which transforms the read counts into logCPMs while taking into account the mean-variance relationship in the data. After vooming, we can apply a linear model to the voom transformed data to test for differentially expressed genes, using standard limma commands.
 
@@ -296,6 +281,7 @@ design
 colnames(design) <- levels(group)
 design
 ```
+
 ## Voom Transformation of Data
 Voom transformation adjusts the library sizes using the norm.factors already calculated. It uses the design matrix and produces an EList object. Adding plot = TRUE generates a plot of the mean-variance trend, which shows if there are any genes that look really variable and if we've filtered the low counts adequately.
 ```{r}
